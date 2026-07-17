@@ -1,0 +1,35 @@
+<%- include('partials/header') %>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>My account</h2>
+    <p class="sub">Change your own username and password. This only affects <b>your</b> login.</p>
+    <form method="post" action="/account">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <label>Username <span class="hint">(optional — change if you want)</span></label>
+      <input type="text" name="newUsername" value="<%= currentUser.username %>" autocomplete="off" />
+      <label>Current password</label>
+      <input type="password" name="currentPassword" autocomplete="off" required />
+      <label>New password <span class="hint">(min 8 characters)</span></label>
+      <input type="password" name="newPassword" autocomplete="off" required />
+      <div style="height:14px"></div>
+      <button class="btn" type="submit">Update my account</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>About your access</h2>
+    <p class="sub">Your role decides what you can open.</p>
+    <p style="font-size:14px;line-height:1.8;color:var(--muted)">
+      You are signed in as <b><%= currentUser.username %></b> —
+      <% if (currentUser.role === 'super') { %>
+        <span class="role-badge super">★ Owner (super admin)</span>. You can manage API keys, connectors and the team.
+      <% } else { %>
+        <span class="role-badge">Team member</span>. You can create and edit content, but API keys and team management are owner-only.
+      <% } %>
+    </p>
+    <div class="callout">Forgot your password? The owner can reset it for you from the Team page, or use the “Forgot password” link on the sign-in screen (owner account only).</div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

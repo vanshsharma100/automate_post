@@ -1,0 +1,331 @@
+<%- include('partials/header') %>
+
+<div class="callout" style="margin-bottom:18px">
+  🔒 <b>Your secrets are safe.</b> Every key/token below is encrypted (AES-256-GCM) before storage and is
+  <b>never shown again</b> — you only ever see a masked hint like <span class="mask">sk-ant-••••3f9a</span>.
+  Leave a secret field blank to keep the saved value. Nothing here is ever sent to your browser in plain text.
+</div>
+
+<!-- AI -->
+<div class="card">
+  <h2>AI — writing &amp; images</h2>
+  <p class="sub">Each API has its own ON/OFF switch — turn them off any time you have no work and want zero API usage.</p>
+  <form method="post" action="/settings/ai">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <h3 style="margin-top:6px">✍️ Claude — writes the posts</h3>
+    <div class="row">
+      <div>
+        <label>Claude API key <% if (masks.claude) { %><span class="hint">— saved: <span class="mask"><%= masks.claude %></span></span><% } %></label>
+        <input id="claudeKey" type="password" name="claudeApiKey" placeholder="<%= masks.claude ? 'Leave blank to keep current key' : 'sk-ant-...' %>" autocomplete="off" />
+        <button type="button" class="btn ghost sm" data-reveal="claudeKey" style="margin-top:6px">Show/Hide</button>
+      </div>
+      <div>
+        <label>Claude switch</label>
+        <select name="claudeEnabled">
+          <option value="on" <%= settings.claudeEnabled ? 'selected' : '' %>>ON — write with Claude</option>
+          <option value="off" <%= !settings.claudeEnabled ? 'selected' : '' %>>OFF — free template writer</option>
+        </select>
+        <label>Model</label>
+        <select name="claudeModel">
+          <% ['claude-sonnet-5','claude-opus-4-8','claude-haiku-4-5-20251001'].forEach(function(m){ %>
+            <option value="<%= m %>" <%= settings.claudeModel === m ? 'selected' : '' %>><%= m %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <h3>🎨 Gemini — generates images (free tier)</h3>
+    <div class="row">
+      <div>
+        <label>Gemini API key <% if (masks.gemini) { %><span class="hint">— saved: <span class="mask"><%= masks.gemini %></span></span><% } %></label>
+        <input id="geminiKey" type="password" name="geminiApiKey" placeholder="<%= masks.gemini ? 'Leave blank to keep current key' : 'AIza...' %>" autocomplete="off" />
+        <button type="button" class="btn ghost sm" data-reveal="geminiKey" style="margin-top:6px">Show/Hide</button>
+        <div class="help">Free key from aistudio.google.com → Get API key.</div>
+      </div>
+      <div>
+        <label>Gemini switch</label>
+        <select name="geminiEnabled">
+          <option value="on" <%= settings.gemini.enabled ? 'selected' : '' %>>ON — AI images via Gemini</option>
+          <option value="off" <%= !settings.gemini.enabled ? 'selected' : '' %>>OFF — use real product photo</option>
+        </select>
+        <div class="help">When OFF (or if Gemini fails), posts automatically use the <b>real product photo</b> from your store.</div>
+      </div>
+    </div>
+
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save AI settings</button>
+  </form>
+</div>
+
+<!-- Posting schedule -->
+<div class="card" style="margin-top:18px">
+  <h2>Posting schedule</h2>
+  <p class="sub">
+    Pick the <b>days</b> and as many <b>times per day</b> as you want, per platform. Times are your local time (IST).
+  </p>
+  <div class="callout" style="margin-bottom:16px">
+    <b>Examples:</b> 2 posts a week → tick <i>Mon</i> + <i>Thu</i>, one time.
+    2 posts every day → tick <i>all 7 days</i>, add <i>two times</i> (e.g. 10:00 and 18:00).
+    Posts per week = days × times.
+  </div>
+  <form method="post" action="/settings/schedule">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <%
+      const DAY_LABELS = [['1','Mon'],['2','Tue'],['3','Wed'],['4','Thu'],['5','Fri'],['6','Sat'],['0','Sun']];
+    %>
+    <% platformList.forEach(function(pl){ const sc = settings.schedule[pl.key]; const total = sc.days.length * sc.times.length; %>
+      <div class="sched-row">
+        <div class="sched-head">
+          <b><%= pl.icon %> <%= pl.label %></b>
+          <span class="freq"><%= total %> post<%= total === 1 ? '' : 's' %> / week</span>
+        </div>
+
+        <label>Days</label>
+        <div class="days">
+          <% DAY_LABELS.forEach(function(dl){ %>
+            <label class="daychip"><input type="checkbox" name="<%= pl.key %>_days" value="<%= dl[0] %>" <%= sc.days.includes(Number(dl[0])) ? 'checked' : '' %> /> <%= dl[1] %></label>
+          <% }); %>
+        </div>
+
+        <label>Times each day <span class="hint">— add as many as you like</span></label>
+        <div class="times" data-times="<%= pl.key %>">
+          <% sc.times.forEach(function(t){ %>
+            <span class="timeitem">
+              <input type="time" name="<%= pl.key %>_times" value="<%= t %>" />
+              <button type="button" class="btn ghost sm danger" data-remove-time title="Remove this time">✕</button>
+            </span>
+          <% }); %>
+        </div>
+        <button type="button" class="btn ghost sm" data-add-time="<%= pl.key %>" style="margin-top:8px">+ Add a time</button>
+      </div>
+    <% }); %>
+
+    <div style="height:16px"></div>
+    <button class="btn" type="submit">Save schedule</button>
+  </form>
+</div>
+
+<!-- Product source -->
+<div class="card" style="margin-top:18px">
+  <h2>Product source — Shopify</h2>
+  <p class="sub">Pulls live products &amp; prices from your store. Add a Shopify Admin API access token when ready.</p>
+  <form method="post" action="/settings/shopify">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="row">
+      <div>
+        <label>Store domain</label>
+        <input type="text" name="domain" value="<%= settings.shopify.domain %>" placeholder="ftechdeals.com" />
+      </div>
+      <div>
+        <label>Admin API token <% if (masks.shopify) { %><span class="hint">— saved: <span class="mask"><%= masks.shopify %></span></span><% } %></label>
+        <input type="password" name="token" placeholder="<%= masks.shopify ? 'Leave blank to keep' : 'shpat_...' %>" autocomplete="off" />
+      </div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save Shopify</button>
+  </form>
+</div>
+
+<div class="section-title">Platform connectors <span style="font-weight:400;text-transform:none">— add later, after developer approval</span></div>
+
+<!-- Meta app -->
+<div class="card">
+  <h2>Meta app — Facebook + Instagram</h2>
+  <p class="sub">
+    Your ONE Meta app from developers.facebook.com. It can drive as many Pages/Instagram accounts as you like —
+    add each of them below.
+  </p>
+  <form method="post" action="/settings/connector/meta">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="row">
+      <div><label>App ID</label><input type="text" name="appId" value="<%= settings.connectors.meta.appId %>" /></div>
+      <div><label>App Secret <% if (masks.metaSecret) { %><span class="hint">(<%= masks.metaSecret %>)</span><% } %></label><input type="password" name="appSecret" placeholder="Leave blank to keep" autocomplete="off" /></div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save Meta app</button>
+  </form>
+</div>
+
+<!-- Accounts (any platform, any number) -->
+<div class="card" style="margin-top:18px">
+  <h2>Accounts <span class="hint">— <%= settings.accounts.length %> added</span></h2>
+  <p class="sub">
+    Add as many accounts as you run, on any platform — two Facebook Pages, three Instagram accounts, a second
+    LinkedIn Page, whatever you have. Each gets its own post when a slot fires.
+    <br />For a <b>📝 Shopify Blog</b> target, the access token can be left blank — blog posts publish through
+    your Shopify store connection above; just add the <b>Blog ID</b> of the blog to post to.
+  </p>
+
+  <% if (!settings.accounts.length) { %>
+    <div class="callout" style="margin-bottom:16px">No accounts yet. Add your first one below — you can add the IDs and token later.</div>
+  <% } %>
+
+  <% var PICONS = { fb:'📘', ig:'📸', linkedin:'💼', gmb:'📍', blog:'📝' }; %>
+  <% platformList.forEach(function(pl){ var list = settings.accounts.filter(function(a){ return a.platform === pl.key; }); %>
+    <% if (list.length) { %>
+      <div class="plat-group">
+        <div class="plat-head"><%= PICONS[pl.key] %> <%= pl.label %> <span class="hint">— <%= list.length %> account<%= list.length===1?'':'s' %></span></div>
+        <% list.forEach(function(a){ %>
+          <div class="acct">
+            <form method="post" action="/settings/account/<%= a.id %>">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <div class="row">
+                <div><label>Account name</label><input type="text" name="label" value="<%= a.label %>" /></div>
+                <div>
+                  <label>Status</label>
+                  <div class="days">
+                    <label class="daychip"><input type="checkbox" name="enabled" <%= a.enabled ? 'checked' : '' %> /> ✅ Active — include in automation</label>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <% (accountFields[a.platform] || []).forEach(function(f){ %>
+                  <div><label><%= f.label %></label><input type="text" name="<%= f.name %>" value="<%= a[f.name] || '' %>" /></div>
+                <% }); %>
+              </div>
+              <label>Access Token <% if (masks.accountTokens[a.id]) { %><span class="hint">(saved: <span class="mask"><%= masks.accountTokens[a.id] %></span>)</span><% } %></label>
+              <input type="password" name="token" placeholder="<%= masks.accountTokens[a.id] ? 'Leave blank to keep' : 'Paste the long-lived token' %>" autocomplete="off" />
+              <label>Account note <span class="hint">— optional, extra AI guidance for this account only</span></label>
+              <input type="text" name="note" value="<%= a.note || '' %>" placeholder="e.g. This page targets gamers — more casual tone" />
+              <div style="height:12px"></div>
+              <button class="btn sm" type="submit">Save</button>
+            </form>
+            <form method="post" action="/settings/account/<%= a.id %>/delete" style="margin-top:8px">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <button class="btn ghost sm danger" type="submit" data-confirm="Remove the account &quot;<%= a.label %>&quot;?">Remove account</button>
+            </form>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  <% }); %>
+
+  <details class="addbox">
+    <summary>➕ Add an account</summary>
+    <form method="post" action="/settings/account/add" style="margin-top:12px">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <div class="row">
+        <div>
+          <label>Platform *</label>
+          <select name="platform" data-platform-select>
+            <% platformList.forEach(function(pl){ %>
+              <option value="<%= pl.key %>"><%= PICONS[pl.key] %> <%= pl.label %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div><label>Account name *</label><input type="text" name="label" placeholder="e.g. F-Tech Main, F-Tech Gaming" required /></div>
+      </div>
+
+      <% platformList.forEach(function(pl){ %>
+        <div class="pf pf-<%= pl.key %>">
+          <div class="row">
+            <% (accountFields[pl.key] || []).forEach(function(f){ %>
+              <div><label><%= f.label %></label><input type="text" name="<%= f.name %>" placeholder="Add later if you don't have it yet" /></div>
+            <% }); %>
+          </div>
+        </div>
+      <% }); %>
+
+      <label>Access Token</label>
+      <input type="password" name="token" placeholder="Add later — encrypted when saved" autocomplete="off" />
+      <label>Account note <span class="hint">— optional</span></label>
+      <input type="text" name="note" placeholder="e.g. This page targets students" />
+      <div class="days" style="margin-top:12px">
+        <label class="daychip"><input type="checkbox" name="enabled" checked /> ✅ Active — include in automation</label>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn" type="submit">Add account</button>
+    </form>
+  </details>
+</div>
+
+<!-- LinkedIn app -->
+<div class="card" style="margin-top:18px">
+  <h2>LinkedIn app</h2>
+  <p class="sub">Your app from linkedin.com/developers (Community Management API). Add your LinkedIn Pages in <b>Accounts</b> above.</p>
+  <form method="post" action="/settings/connector/linkedin">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="row">
+      <div><label>Client ID</label><input type="text" name="clientId" value="<%= settings.connectors.linkedin.clientId %>" /></div>
+      <div><label>Client Secret <% if (masks.liSecret) { %><span class="hint">(<%= masks.liSecret %>)</span><% } %></label><input type="password" name="clientSecret" placeholder="Leave blank to keep" autocomplete="off" /></div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save LinkedIn app</button>
+  </form>
+</div>
+
+<!-- Google app -->
+<div class="card" style="margin-top:18px">
+  <h2>Google app</h2>
+  <p class="sub">Your OAuth client from console.cloud.google.com (Business Profile API). Add your locations in <b>Accounts</b> above.</p>
+  <form method="post" action="/settings/connector/google">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="row">
+      <div><label>Client ID</label><input type="text" name="clientId" value="<%= settings.connectors.google.clientId %>" /></div>
+      <div><label>Client Secret <% if (masks.gSecret) { %><span class="hint">(<%= masks.gSecret %>)</span><% } %></label><input type="password" name="clientSecret" placeholder="Leave blank to keep" autocomplete="off" /></div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save Google app</button>
+  </form>
+</div>
+
+<div class="section-title">Email &amp; recovery</div>
+<div class="card">
+  <h2>Email (SMTP) &amp; password recovery</h2>
+  <p class="sub">Where "forgot password" mails go, and the SMTP used to send them. Recovery email is prefilled.</p>
+  <form method="post" action="/settings/smtp">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <label>Recovery email <span class="hint">— your login details are sent here</span></label>
+    <input type="email" name="recoveryEmail" value="<%= settings.recoveryEmail %>" />
+    <div class="row">
+      <div><label>SMTP host</label><input type="text" name="host" value="<%= settings.smtp.host %>" placeholder="smtp.gmail.com" /></div>
+      <div><label>Port</label><input type="number" name="port" value="<%= settings.smtp.port %>" /></div>
+    </div>
+    <div class="row">
+      <div><label>SMTP user</label><input type="text" name="user" value="<%= settings.smtp.user %>" placeholder="you@gmail.com" /></div>
+      <div><label>SMTP password / app password <% if (masks.smtpPass) { %><span class="hint">(<%= masks.smtpPass %>)</span><% } %></label><input type="password" name="pass" placeholder="Leave blank to keep" autocomplete="off" /></div>
+    </div>
+    <label>From address</label>
+    <input type="text" name="from" value="<%= settings.smtp.from %>" placeholder="F-Tech Automation <you@gmail.com>" />
+    <div class="help">Gmail needs an <b>App Password</b> (Google Account → Security → 2-Step Verification → App passwords), not your normal password.</div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save email settings</button>
+  </form>
+</div>
+
+<div class="section-title">Brand</div>
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Brand profile</h2>
+    <form method="post" action="/settings/brand">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <label>Business name</label>
+      <input type="text" name="name" value="<%= settings.brand.name %>" />
+      <label>Website</label>
+      <input type="text" name="website" value="<%= settings.brand.website %>" />
+      <label>City / area</label>
+      <input type="text" name="city" value="<%= settings.brand.city %>" />
+      <div class="row">
+        <div><label>Primary color</label><input type="color" name="colorPrimary" value="<%= settings.brand.colorPrimary %>" /></div>
+        <div><label>Accent color</label><input type="color" name="colorAccent" value="<%= settings.brand.colorAccent %>" /></div>
+      </div>
+      <div style="height:14px"></div>
+      <button class="btn" type="submit">Save brand</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Your login &amp; your team</h2>
+    <p class="sub">These moved out of Settings for clarity and security.</p>
+    <ul style="padding-left:18px;color:var(--muted);font-size:14px;line-height:1.9">
+      <li>Change <b>your own</b> username &amp; password in <a href="/account">My Account</a>.</li>
+      <li>Create logins for staff in <a href="/team">Team</a>. Team members can write content but never see the API keys/secrets on this page.</li>
+    </ul>
+    <div class="callout">You are the <b>super admin (owner)</b>. Only super admins can open this Settings page and the Team page.</div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

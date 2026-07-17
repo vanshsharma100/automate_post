@@ -1,0 +1,136 @@
+<%- include('partials/header') %>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Generate a post</h2>
+    <p class="sub">Pick a platform and a post type. The Content Brain uses your <a href="/knowledge">Share Knowledge</a> guidance.</p>
+
+    <% if (!aiConnected) { %>
+      <div class="callout" style="margin-bottom:14px">
+        Claude API key not added yet — you'll get a realistic <b>template preview</b> for now.
+        <% if (currentUser && currentUser.role === 'super') { %>
+          Add your key in <a href="/settings">Settings → AI</a> and generations switch to Claude automatically.
+        <% } else { %>
+          The owner can add the key in Settings and generations switch to Claude automatically.
+        <% } %>
+      </div>
+    <% } %>
+
+    <form method="post" action="/content/generate">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+      <label>Post type</label>
+      <select name="postType" data-posttype-select>
+        <option value="product">🛍️ Product post — promote one product</option>
+        <option value="general">💡 General post — helpful content, no product</option>
+      </select>
+      <div class="help">Use <b>General</b> where you don't want to sell directly (e.g. LinkedIn tips, buying guides, how-tos).</div>
+
+      <div class="product-field">
+        <label>Product</label>
+        <select name="productId">
+          <% products.forEach(function(p){ %>
+            <option value="<%= p.id %>"><%= p.shortTitle || p.title %> — ₹<%= p.price.toLocaleString('en-IN') %></option>
+          <% }); %>
+        </select>
+      </div>
+
+      <label>Platform</label>
+      <select name="platform">
+        <% Object.keys(platforms).forEach(function(k){ %>
+          <option value="<%= k %>"><%= platforms[k].icon %> <%= platforms[k].label %></option>
+        <% }); %>
+      </select>
+
+      <% if (accounts.length) { %>
+        <label>Account <span class="hint">— must match the platform above</span></label>
+        <select name="accountId">
+          <option value="all">All active accounts on that platform (one post each)</option>
+          <% accounts.forEach(function(a){ %>
+            <option value="<%= a.id %>"><%= platforms[a.platform] ? platforms[a.platform].label : a.platform %> — <%= a.label %><%= a.enabled ? '' : ' (inactive)' %></option>
+          <% }); %>
+        </select>
+      <% } %>
+
+      <label>Schedule for later <span class="hint">— optional; leave empty to just save a draft</span></label>
+      <input type="datetime-local" name="scheduledAt" />
+      <div class="help">Set a date &amp; time and the post is saved and queued to publish then (once the platform is connected). Leave empty to save a plain draft you approve yourself.</div>
+
+      <div style="height:14px"></div>
+      <button class="btn wide" type="submit">✨ Generate &amp; save</button>
+    </form>
+
+    <hr class="divider" />
+    <p class="sub" style="margin:0 0 8px">Or run a scheduled slot now (uses that platform's content type):</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <% Object.keys(platforms).forEach(function(k){ %>
+        <form method="post" action="/run/<%= k %>" style="margin:0">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn ghost sm" type="submit"><%= platforms[k].icon %> <%= platforms[k].label %></button>
+        </form>
+      <% }); %>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>How these are handled</h2>
+    <p class="sub">The Autopilot switch per platform lives on the Dashboard.</p>
+    <ul style="padding-left:18px;color:var(--muted);font-size:14px;line-height:1.8">
+      <li><b>Product post</b> → promotes a specific product with its price and link.</li>
+      <li><b>General post</b> → the AI writes helpful, non-promotional content for your field.</li>
+      <li><b>Autopilot ON</b> + connector added → publishes automatically on schedule.</li>
+      <li><b>Draft mode</b> → saved here; you press <b>Approve</b> to mark it ready.</li>
+      <li>Set a <b>schedule time</b> to auto-publish a single post at an exact moment.</li>
+    </ul>
+    <div class="callout">Nothing is posted anywhere until the platform connectors are added in Settings.</div>
+  </div>
+</div>
+
+<div class="section-title">Drafts &amp; generated posts</div>
+
+<% if (!posts.length) { %>
+  <div class="card"><div class="callout">No content yet — generate your first post above.</div></div>
+<% } else { %>
+  <!-- Per-platform filter (each platform has its own content section) -->
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab active" data-filter="all">🗂️ All (<%= posts.length %>)</button>
+    <% platformList.forEach(function(pl){ var n = posts.filter(function(p){ return p.platform === pl.key; }).length; %>
+      <button type="button" class="tab" data-filter="<%= pl.key %>"><%= pl.icon %> <%= pl.label %> (<%= n %>)</button>
+    <% }); %>
+  </div>
+
+  <div class="grid cols-2" data-content-grid>
+    <% posts.forEach(function(p){ %>
+      <div class="post-card" data-platform="<%= p.platform %>">
+        <div class="meta">
+          <span class="pill <%= p.status === 'published' ? 'pub' : (p.status === 'approved' ? 'auto' : (p.status === 'scheduled' ? 'sched' : 'draft')) %>"><%= p.status %></span>
+          <span class="pill <%= p.postType === 'general' ? 'gen' : 'prod' %>"><%= p.postType === 'general' ? 'general' : 'product' %></span>
+          <b><%= p.platformLabel %></b><% if (p.accountLabel) { %> <span class="acct-tag"><%= p.accountLabel %></span><% } %> · <%= p.productTitle %>
+          <span style="margin-left:auto;font-size:11px">via <%= p.engine === 'claude' ? 'Claude' : 'template' %><%= p.imageEngine === 'gemini' ? ' + Gemini img' : '' %></span>
+        </div>
+        <% if (p.scheduledAt) { %>
+          <div class="help" style="margin-bottom:8px">🕑 Scheduled: <b><%= new Date(p.scheduledAt).toLocaleString() %></b></div>
+        <% } %>
+        <% if (p.image) { %><img class="post-img" src="<%= p.image %>" alt="" onerror="this.style.display='none'" /><% } %>
+        <div class="body"><%= p.text %></div>
+        <% if (p.note) { %><div class="help" style="color:var(--warn)"><%= p.note %></div><% } %>
+        <% if (p.imageNote) { %><div class="help"><%= p.imageNote %></div><% } %>
+        <div class="actions">
+          <a class="btn ghost sm" href="/content/<%= p.id %>/edit">✎ Edit</a>
+          <% if (!p.approved && p.status !== 'published') { %>
+            <form method="post" action="/content/<%= p.id %>/approve" style="margin:0">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <button class="btn sm" type="submit">Approve</button>
+            </form>
+          <% } %>
+          <form method="post" action="/content/<%= p.id %>/delete" style="margin:0">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button class="btn ghost sm danger" type="submit" data-confirm="Delete this draft?">Delete</button>
+          </form>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,149 @@
+<%- include('partials/header') %>
+
+<!-- MASTER SWITCH -->
+<div class="card" style="margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; gap:14px; <%= settings.paused ? 'border-color:#fca5a5; background:#fef2f2;' : '' %>">
+  <div>
+    <h2 style="margin-bottom:2px">
+      <% if (settings.paused) { %>⏸ Platform is PAUSED<% } else { %>▶ Platform is running<% } %>
+    </h2>
+    <p class="sub" style="margin:0">
+      <% if (settings.paused) { %>
+        All automation is stopped — no posts will be generated or published until you resume. Manual generation still works.
+      <% } else { %>
+        Automation is active. Pause everything with one click when you have no work.
+      <% } %>
+    </p>
+  </div>
+  <form method="post" action="/pause" style="margin:0">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <% if (settings.paused) { %>
+      <button class="btn" type="submit">▶ Resume automation</button>
+    <% } else { %>
+      <button class="btn danger" type="submit" data-confirm="Pause ALL automatic posting?">⏸ Pause everything</button>
+    <% } %>
+  </form>
+</div>
+
+<div class="grid cols-4">
+  <div class="card stat"><div class="n"><%= productCount %></div><div class="l">Products synced</div></div>
+  <div class="card stat"><div class="n"><%= posts.length %></div><div class="l">Recent drafts</div></div>
+  <div class="card stat">
+    <div class="n"><%= platforms.filter(p => p.connected).length %>/<%= platforms.length %></div>
+    <div class="l">Platforms connected</div>
+  </div>
+  <div class="card stat">
+    <div class="n"><%= platforms.filter(p => settings.toggles[p.key] === 'auto').length %>/<%= platforms.length %></div>
+    <div class="l">On Autopilot</div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<details class="card howto" style="margin-top:18px">
+  <summary><b>❓ New here? How this tool works (30-second read)</b></summary>
+  <ol style="padding-left:18px;color:var(--muted);font-size:14px;line-height:1.9;margin:12px 0 0">
+    <li><b>Share Knowledge</b> — tell the AI about your business once. It uses this for every post.</li>
+    <li><b>Content &amp; Drafts</b> — generate a post for any platform. Choose <b>Product</b> (promote an item) or <b>General</b> (helpful, non-salesy content). You can schedule it for later.</li>
+    <li><b>Approve</b> a draft to mark it ready, or turn on <b>Autopilot</b> below to let a platform post on schedule automatically.</li>
+    <li><b>Settings</b> (owner only) — add your API keys, connect Shopify + social accounts. Until connected, everything is saved safely as a draft.</li>
+    <li><b>Team</b> (owner only) — create logins for your staff so they can write content, without seeing your keys.</li>
+  </ol>
+</details>
+
+<div class="section-title">Autopilot &amp; content type</div>
+<div class="card">
+  <p class="sub">
+    <b>Autopilot ON</b> = generate &amp; publish automatically on schedule. <b>Draft</b> = generate, then you press Approve.
+    <b>Content</b> = what each platform posts: <b>Product</b> (promote items), <b>General</b> (helpful, non-promotional), or <b>Mix</b>.
+    Each platform is independent.
+  </p>
+  <form method="post" action="/toggles">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Platform</th><th>Connection</th><th>Schedule</th><th>Content</th><th>Mode</th></tr></thead>
+      <tbody>
+        <% platforms.forEach(function(p){ %>
+        <tr>
+          <td>
+            <b><%= p.icon %> <%= p.label %></b>
+            <% if (p.accounts > 1) { %><span class="hint">— <%= p.accounts %> accounts</span><% } %>
+          </td>
+          <td>
+            <% if (p.connected) { %>
+              <span class="pill on"><span class="dot green"></span> Connected</span>
+            <% } else { %>
+              <span class="pill off"><span class="dot gray"></span> Not connected</span>
+            <% } %>
+          </td>
+          <td style="color:var(--muted)">
+            <% const DN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; const sc = settings.schedule[p.key]; %>
+            <% if (sc && sc.days && sc.times) { const n = sc.days.length * sc.times.length; %>
+              <%= sc.days.map(function(d){ return DN[d]; }).join(', ') %> · <%= sc.times.join(', ') %>
+              <span class="hint">(<%= n %>/wk)</span>
+            <% } else { %>—<% } %>
+          </td>
+          <td>
+            <% const cm = (settings.contentMode || {})[p.key] || 'product'; %>
+            <select name="<%= p.key %>_mode">
+              <option value="product" <%= cm === 'product' ? 'selected' : '' %>>Product</option>
+              <option value="general" <%= cm === 'general' ? 'selected' : '' %>>General</option>
+              <option value="mix"     <%= cm === 'mix' ? 'selected' : '' %>>Mix</option>
+            </select>
+          </td>
+          <td>
+            <select name="<%= p.key %>">
+              <option value="draft" <%= settings.toggles[p.key] === 'draft' ? 'selected' : '' %>>Draft (manual)</option>
+              <option value="auto"  <%= settings.toggles[p.key] === 'auto' ? 'selected' : '' %>>Autopilot (auto)</option>
+            </select>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save Autopilot &amp; content settings</button>
+  </form>
+</div>
+
+<div class="grid cols-2" style="margin-top:22px">
+  <div class="card">
+    <h2>Latest drafts</h2>
+    <p class="sub">Newest generated content.</p>
+    <% if (!posts.length) { %>
+      <div class="callout">No content yet. Go to <a href="/content">Content &amp; Drafts</a> and generate your first post.</div>
+    <% } else { %>
+      <% posts.forEach(function(p){ %>
+        <div class="post-card" style="margin-bottom:12px">
+          <div class="meta">
+            <span class="pill <%= p.status === 'published' ? 'pub' : 'draft' %>"><%= p.status %></span>
+            <b><%= p.platformLabel %></b> · <%= p.productTitle %>
+          </div>
+          <div class="body"><%= p.text %></div>
+        </div>
+      <% }); %>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Activity log</h2>
+    <p class="sub">What the scheduler has done.</p>
+    <% if (!logs.length) { %>
+      <div class="callout">No activity yet.</div>
+    <% } else { %>
+      <table>
+        <tbody>
+          <% logs.forEach(function(l){ %>
+            <tr>
+              <td style="color:var(--muted);font-size:12px"><%= new Date(l.at).toLocaleString() %></td>
+              <td><%= l.platform %></td>
+              <td><span class="pill <%= l.status === 'published' ? 'pub' : 'draft' %>"><%= l.status %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

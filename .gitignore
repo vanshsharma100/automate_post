@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------
+#  NEVER COMMIT SECRETS OR LIVE DATA
+# ---------------------------------------------------------------
+# The whole data/ folder is ignored on purpose. It holds:
+#   .secrets.json  -> MASTER_KEY + SESSION_SECRET (server-only)
+#   db.json        -> users, password hashes, ENCRYPTED API keys/tokens
+#   db.backup*.json / db.pre-upgrade-*.json -> snapshots of the same
+#   outbox/        -> password-recovery emails
+# The app recreates data/ automatically on first run.
+data/
+
+# Environment variables (real values). The example file is safe to commit.
+.env
+.env.*
+!.env.example
+
+# Keys / certificates, just in case
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ---------------------------------------------------------------
+#  Build / runtime artefacts
+# ---------------------------------------------------------------
+node_modules/
+public/generated/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------
+#  Editor / OS / tooling
+# ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/settings.local.json
+.vercel/

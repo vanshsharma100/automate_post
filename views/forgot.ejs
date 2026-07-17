@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forgot password · F-Tech Automation</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="auth">
+    <div class="auth-card">
+      <div class="logo">F</div>
+      <h1>Account recovery</h1>
+
+      <% if (typeof done !== 'undefined' && done) { %>
+        <p class="sub">A fresh username &amp; temporary password has been prepared and sent to your recovery email:</p>
+        <div class="mask"><%= recovery %></div>
+        <% if (delivered) { %>
+          <div class="flash ok" style="margin-top:14px">Email sent. Check your inbox, then sign in and change the password.</div>
+        <% } else { %>
+          <div class="flash warn" style="margin-top:14px">
+            SMTP isn't configured yet, so the email was saved locally instead of sent
+            <% if (outbox) { %>(<span class="mask"><%= outbox %></span> in <span class="mask">data/outbox/</span>)<% } %>.
+            Add SMTP details in Settings → Email so recovery mails reach your Gmail.
+          </div>
+        <% } %>
+        <div style="height:14px"></div>
+        <a class="btn wide" href="/login">Back to sign in</a>
+      <% } else { %>
+        <p class="sub">We'll generate a new temporary password and email it to your recovery address on file. You can change it after signing in.</p>
+        <form method="post" action="/forgot">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn wide" type="submit">Send my login details</button>
+        </form>
+        <div class="foot"><a href="/login">Back to sign in</a></div>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

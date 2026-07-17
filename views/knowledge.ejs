@@ -1,0 +1,83 @@
+<%- include('partials/header') %>
+
+<div class="card">
+  <h2>Share Knowledge</h2>
+  <p class="sub">
+    This is what the system "knows" about your business. It is sent to Claude every time it writes a post.
+    <b>Shared</b> applies to every platform. Each platform tab adds extra rules on top — use it for what makes
+    that platform different (LinkedIn professional, Instagram hashtags, and so on).
+  </p>
+
+  <div class="callout" style="margin-bottom:16px">
+    <b>How it layers:</b> Shared rules → then that platform's rules (these win if they conflict) → then the real
+    product from Shopify. One save button saves everything.
+  </div>
+
+  <form method="post" action="/knowledge">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="shared">🌐 Shared — all platforms</button>
+      <% platforms.forEach(function(p){ %>
+        <button type="button" class="tab" data-tab="<%= p.key %>"><%= p.icon %> <%= p.label %></button>
+      <% }); %>
+    </div>
+
+    <!-- Shared -->
+    <div class="tabpane active" data-pane="shared">
+      <label>Brand voice <span class="hint">— how you sound everywhere</span></label>
+      <textarea name="shared_brandVoice" rows="4"><%= knowledge.shared.brandVoice %></textarea>
+      <div class="help">Who you are, what you sell, and the tone. This is the foundation of every post.</div>
+
+      <label>Instructions to the AI <span class="hint">— the rules for every post</span></label>
+      <textarea name="shared_instructions" rows="6"><%= knowledge.shared.instructions %></textarea>
+      <div class="help">Length, what to include, price format (₹), call to action, customer angles to rotate, etc.</div>
+
+      <div class="row">
+        <div>
+          <label>Always DO</label>
+          <textarea name="shared_dos" rows="4"><%= knowledge.shared.dos %></textarea>
+        </div>
+        <div>
+          <label>Never DO</label>
+          <textarea name="shared_donts" rows="4"><%= knowledge.shared.donts %></textarea>
+        </div>
+      </div>
+
+      <label>Example posts you like <span class="hint">— one per line</span></label>
+      <textarea name="shared_examples" rows="5" placeholder="Paste a few of your best posts, one per line."><%= (knowledge.shared.examples || []).join('\n') %></textarea>
+      <div class="help">Real examples teach tone faster than any rule.</div>
+    </div>
+
+    <!-- Per platform -->
+    <% platforms.forEach(function(p){ const pk = knowledge.platforms[p.key] || {}; %>
+      <div class="tabpane" data-pane="<%= p.key %>">
+        <div class="callout" style="margin-bottom:14px">
+          These rules apply to <b><%= p.label %></b> only, <i>in addition to</i> your Shared rules. Leave blank to just use Shared.
+        </div>
+
+        <label><%= p.label %> instructions</label>
+        <textarea name="<%= p.key %>_instructions" rows="5" placeholder="e.g. <%= p.key === 'linkedin' ? 'Professional tone. Focus on business value and cost savings. No hashtag spam — max 2.' : (p.key === 'ig' ? 'Short punchy lines. 4-6 hashtags. Always say Link in bio.' : (p.key === 'gmb' ? 'Local and factual. Mention the shop and invite a visit or call. No hashtags.' : (p.key === 'blog' ? 'Long-form and helpful. Clear title + subheadings. SEO-friendly. End with a soft call to action.' : 'Warm and conversational. A few emojis. Include the website link.'))) %>"><%= pk.instructions || '' %></textarea>
+
+        <div class="row">
+          <div>
+            <label>Always DO on <%= p.label %></label>
+            <textarea name="<%= p.key %>_dos" rows="3"><%= pk.dos || '' %></textarea>
+          </div>
+          <div>
+            <label>Never DO on <%= p.label %></label>
+            <textarea name="<%= p.key %>_donts" rows="3"><%= pk.donts || '' %></textarea>
+          </div>
+        </div>
+
+        <label><%= p.label %> example posts <span class="hint">— one per line</span></label>
+        <textarea name="<%= p.key %>_examples" rows="4" placeholder="Your best <%= p.label %> posts, one per line."><%= (pk.examples || []).join('\n') %></textarea>
+      </div>
+    <% }); %>
+
+    <div style="height:18px"></div>
+    <button class="btn" type="submit">Save all knowledge</button>
+  </form>
+</div>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %> · F-Tech Automation</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand-badge">
+        <div class="logo">F</div>
+        <div><b>F-Tech</b><span>Automation Posts</span></div>
+      </div>
+      <nav class="nav">
+        <a href="/" class="<%= active === 'dashboard' ? 'active' : '' %>"><span class="ico">▦</span> Dashboard</a>
+        <a href="/content" class="<%= active === 'content' ? 'active' : '' %>"><span class="ico">✎</span> Content &amp; Drafts</a>
+        <a href="/knowledge" class="<%= active === 'knowledge' ? 'active' : '' %>"><span class="ico">◈</span> Share Knowledge</a>
+        <a href="/products" class="<%= active === 'products' ? 'active' : '' %>"><span class="ico">▤</span> Products</a>
+        <a href="/account" class="<%= active === 'account' ? 'active' : '' %>"><span class="ico">◑</span> My Account</a>
+        <% if (currentUser && currentUser.role === 'super') { %>
+          <div class="nav-sep">Owner only</div>
+          <a href="/settings" class="<%= active === 'settings' ? 'active' : '' %>"><span class="ico">⚙</span> Settings</a>
+          <a href="/team" class="<%= active === 'team' ? 'active' : '' %>"><span class="ico">◆</span> Team</a>
+        <% } %>
+      </nav>
+      <div class="foot">Google · LinkedIn · Instagram · Facebook · Shopify Blog</div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <h1><%= title %></h1>
+        <div class="user">
+          <span><%= currentUser ? currentUser.username : '' %></span>
+          <% if (currentUser) { %>
+            <span class="role-badge <%= currentUser.role === 'super' ? 'super' : '' %>"><%= currentUser.role === 'super' ? '★ Owner' : 'Team' %></span>
+          <% } %>
+          <form method="post" action="/logout" style="margin:0">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button class="btn ghost sm" type="submit">Sign out</button>
+          </form>
+        </div>
+      </div>
+      <div class="content-wrap">
+        <% if (flash) { %>
+          <div class="flash <%= flash.type %>"><%= flash.message %></div>
+        <% } %>

@@ -1,0 +1,38 @@
+<%- include('partials/header') %>
+
+<div class="card">
+  <h2>Products</h2>
+  <p class="sub">
+    These feed the Content Brain.
+    <% if (shopifyConnected) { %>
+      Synced from your Shopify store.
+    <% } else { %>
+      Showing sample products from <b>ftechdeals.com</b>. Add your Shopify Admin token in
+      <a href="/settings">Settings → Product source</a> to pull your full live catalog.
+    <% } %>
+  </p>
+
+  <table>
+    <thead><tr><th>Product</th><th>Type</th><th>Price</th><th></th></tr></thead>
+    <tbody>
+      <% products.forEach(function(p){ %>
+        <tr>
+          <td>
+            <div class="product">
+              <img src="<%= p.image %>" alt="" onerror="this.style.visibility='hidden'" />
+              <div>
+                <b><%= p.shortTitle || p.title %></b>
+                <div class="help"><%= (p.tags || []).join(' · ') %></div>
+              </div>
+            </div>
+          </td>
+          <td style="color:var(--muted)"><%= p.type || '—' %></td>
+          <td><span class="price">₹<%= p.price.toLocaleString('en-IN') %></span></td>
+          <td><a class="btn ghost sm" href="<%= p.url %>" target="_blank" rel="noopener">View</a></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,76 @@
+<%- include('partials/header') %>
+
+<div class="card">
+  <h2>Team logins <span class="hint">— <%= users.length %> total</span></h2>
+  <p class="sub">
+    Create a separate login for each staff member so you can share the tool safely. Team members can write and
+    schedule content, but <b>cannot</b> see your API keys/secrets, connectors, or this Team page. You are the owner
+    (super admin) and stay in control.
+  </p>
+  <div class="callout" style="margin-bottom:16px">
+    <b>Roles:</b> <span class="role-badge super">★ Owner</span> = full access incl. keys &amp; team ·
+    <span class="role-badge">Team</span> = content only. Give someone Owner only if you fully trust them with your API keys.
+  </div>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Reset password</th><th></th></tr></thead>
+    <tbody>
+      <% users.forEach(function(u){ %>
+        <tr>
+          <td><b><%= u.username %></b><% if (u.isSelf) { %> <span class="hint">(you)</span><% } %></td>
+          <td>
+            <% if (u.role === 'super') { %><span class="role-badge super">★ Owner</span><% } else { %><span class="role-badge">Team</span><% } %>
+          </td>
+          <td>
+            <% if (u.mustChangePassword) { %>
+              <span class="pill draft">temp password</span>
+            <% } else { %>
+              <span class="pill on"><span class="dot green"></span> active</span>
+            <% } %>
+          </td>
+          <td>
+            <form method="post" action="/team/<%= u.id %>/reset" style="margin:0;display:flex;gap:6px;align-items:center">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="password" name="password" placeholder="New password (min 8)" autocomplete="off" style="width:auto;flex:1" required />
+              <button class="btn ghost sm" type="submit">Reset</button>
+            </form>
+          </td>
+          <td style="text-align:right">
+            <% if (!u.isSelf) { %>
+              <form method="post" action="/team/<%= u.id %>/delete" style="margin:0">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn ghost sm danger" type="submit" data-confirm="Remove the login &quot;<%= u.username %>&quot;? They will no longer be able to sign in.">Remove</button>
+              </form>
+            <% } else { %>
+              <span class="hint">—</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h2>➕ Add a team login</h2>
+  <p class="sub">They sign in at the same address with the username and password you set here. They'll be asked to change the password on first sign-in.</p>
+  <form method="post" action="/team/add">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="row">
+      <div><label>Username *</label><input type="text" name="username" placeholder="e.g. rahul, content-team" autocomplete="off" required /></div>
+      <div><label>Temporary password * <span class="hint">(min 8 chars)</span></label><input type="password" name="password" placeholder="They change it after first sign-in" autocomplete="off" required /></div>
+    </div>
+    <label>Role</label>
+    <select name="role">
+      <option value="member">Team member — content only (recommended)</option>
+      <option value="super">Owner — full access incl. API keys &amp; team</option>
+    </select>
+    <div class="help">Choose <b>Owner</b> only for a co-owner you trust with your API keys and billing.</div>
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Create login</button>
+  </form>
+</div>
+
+<%- include('partials/footer') %>
