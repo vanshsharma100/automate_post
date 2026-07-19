@@ -41,7 +41,13 @@ function requireSuper(req, res, next) {
 
 function csrfProtection(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-  const token = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
+  // Also accept the token from the query string so multipart/form-data uploads
+  // (parsed later by multer) still pass the CSRF check. The token is a
+  // per-session secret, so this is as safe as the hidden form field.
+  const token =
+    (req.body && req.body._csrf) ||
+    (req.query && req.query._csrf) ||
+    req.headers['x-csrf-token'];
   if (!token || token !== req.session.csrfToken) {
     return res.status(403).render('error', {
       title: 'Security check failed',

@@ -37,6 +37,35 @@
   </div>
 </div>
 
+<div class="grid cols-2" style="margin-top:16px">
+  <div class="card" style="display:flex;align-items:center;gap:12px">
+    <div style="font-size:26px">🧠</div>
+    <div style="flex:1">
+      <b>Brain: <%= brainActive.charAt(0).toUpperCase() + brainActive.slice(1) %></b>
+      <% if (brainReady) { %>
+        <span class="pill on"><span class="dot green"></span> Ready</span>
+      <% } else { %>
+        <span class="pill off"><span class="dot gray"></span> Using free template writer</span>
+      <% } %>
+      <div class="help" style="margin:2px 0 0">The AI that writes your posts.</div>
+    </div>
+    <% if (currentUser && currentUser.role === 'super') { %><a class="btn ghost sm" href="/brain">Open</a><% } %>
+  </div>
+  <div class="card" style="display:flex;align-items:center;gap:12px">
+    <div style="font-size:26px">🛒</div>
+    <div style="flex:1">
+      <b>Shopify</b>
+      <% if (shopifyConnected) { %>
+        <span class="pill on"><span class="dot green"></span> Connected</span>
+      <% } else { %>
+        <span class="pill off"><span class="dot gray"></span> Sample products</span>
+      <% } %>
+      <div class="help" style="margin:2px 0 0">Your main content source — products &amp; prices.</div>
+    </div>
+    <a class="btn ghost sm" href="/products">Products</a>
+  </div>
+</div>
+
 <!-- HOW IT WORKS -->
 <details class="card howto" style="margin-top:18px">
   <summary><b>❓ New here? How this tool works (30-second read)</b></summary>
@@ -52,10 +81,15 @@
 <div class="section-title">Autopilot &amp; content type</div>
 <div class="card">
   <p class="sub">
-    <b>Autopilot ON</b> = generate &amp; publish automatically on schedule. <b>Draft</b> = generate, then you press Approve.
-    <b>Content</b> = what each platform posts: <b>Product</b> (promote items), <b>General</b> (helpful, non-promotional), or <b>Mix</b>.
-    Each platform is independent.
+    <b>🚀 Autopilot</b> = the post is written <b>and published automatically</b> on schedule — you are never asked.
+    <b>✋ Manual</b> = automatic publishing is <b>off</b>; posts are saved as drafts and go live only when you press
+    <b>Publish now</b> in <a href="/content">Content</a>. <b>Content</b> = what each platform posts:
+    <b>Product</b>, <b>General</b>, or <b>Mix</b>. Each platform is set independently.
   </p>
+  <div class="callout" style="margin-bottom:14px">
+    Publishing needs that platform <b>Connected</b> (app credentials + account token in
+    <a href="/settings">Settings</a>). Until then everything is safely saved as a draft — nothing is lost.
+  </div>
   <form method="post" action="/toggles">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <div class="table-wrap">
@@ -92,8 +126,8 @@
           </td>
           <td>
             <select name="<%= p.key %>">
-              <option value="draft" <%= settings.toggles[p.key] === 'draft' ? 'selected' : '' %>>Draft (manual)</option>
-              <option value="auto"  <%= settings.toggles[p.key] === 'auto' ? 'selected' : '' %>>Autopilot (auto)</option>
+              <option value="draft" <%= settings.toggles[p.key] === 'draft' ? 'selected' : '' %>>✋ Manual — I publish</option>
+              <option value="auto"  <%= settings.toggles[p.key] === 'auto' ? 'selected' : '' %>>🚀 Autopilot — posts itself</option>
             </select>
           </td>
         </tr>

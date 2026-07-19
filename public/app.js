@@ -96,6 +96,28 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('[data-posttype-select]').forEach(syncPostType);
 });
 
+// Content page: switch between "Generate with AI" and "Write your own" panes.
+document.addEventListener('click', function (e) {
+  var tab = e.target.closest('.tab[data-pane-tab]');
+  if (!tab) return;
+  var want = tab.getAttribute('data-pane-tab');
+  document.querySelectorAll('.tab[data-pane-tab]').forEach(function (t) {
+    t.classList.toggle('active', t === tab);
+  });
+  document.querySelectorAll('.pane[data-pane]').forEach(function (p) {
+    p.hidden = p.getAttribute('data-pane') !== want;
+  });
+});
+
+// Brain page: highlight the selected provider card when its radio is chosen.
+document.addEventListener('change', function (e) {
+  if (!e.target.closest('.brain-choice input[type="radio"]')) return;
+  document.querySelectorAll('.brain-choice').forEach(function (c) {
+    var r = c.querySelector('input[type="radio"]');
+    c.classList.toggle('sel', !!(r && r.checked));
+  });
+});
+
 // Content page: filter the drafts grid by platform (per-platform sections).
 document.addEventListener('click', function (e) {
   var tab = e.target.closest('.tab[data-filter]');

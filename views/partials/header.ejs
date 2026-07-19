@@ -21,6 +21,7 @@
         <a href="/account" class="<%= active === 'account' ? 'active' : '' %>"><span class="ico">◑</span> My Account</a>
         <% if (currentUser && currentUser.role === 'super') { %>
           <div class="nav-sep">Owner only</div>
+          <a href="/brain" class="<%= active === 'brain' ? 'active' : '' %>"><span class="ico">🧠</span> Brain (AI)</a>
           <a href="/settings" class="<%= active === 'settings' ? 'active' : '' %>"><span class="ico">⚙</span> Settings</a>
           <a href="/team" class="<%= active === 'team' ? 'active' : '' %>"><span class="ico">◆</span> Team</a>
         <% } %>

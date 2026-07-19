@@ -15,6 +15,7 @@ const path = require('path');
 const config = require('./config');
 const { hashPassword } = require('./crypto');
 const { PLATFORM_KEYS } = require('./platforms');
+const { TEXT_MAP } = require('./brain');
 
 const DB_FILE = path.join(config.dataDir, 'db.json');
 
@@ -93,13 +94,26 @@ function defaultDb() {
         colorPrimary: '#0b6bcb',
         colorAccent: '#f5a623',
       },
-      // --- AI ---
-      claudeApiKey: '',      // encrypted when set
-      claudeModel: 'claude-sonnet-5',
-      claudeEnabled: true,   // ON/OFF switch — OFF = free template writer
-      gemini: { apiKey: '', enabled: false }, // image generation; OFF = real product photo
+      // --- AI "Brain" — many providers, you pick which one writes ---
+      // Each provider stores its own ENCRYPTED key + chosen model + on/off.
+      // `active` decides which one actually writes posts. Image generation can
+      // use Gemini OR OpenAI (ChatGPT). See src/brain.js for the provider list.
+      brain: {
+        active: 'claude',                 // 'claude' | 'openai' | 'gemini'
+        providers: {
+          claude: { apiKey: '', model: 'claude-sonnet-5',  enabled: true },
+          openai: { apiKey: '', model: 'gpt-5.6',           enabled: false },
+          gemini: { apiKey: '', model: 'gemini-3.5-flash',  enabled: false },
+        },
+        // Image generator: which provider draws marketing images.
+        image: { provider: 'gemini', enabled: false }, // 'gemini' | 'openai'
+      },
       // --- Master switch: pause ALL automation ---
       paused: false,
+      // --- Public address of this app once deployed (e.g. https://x.onrender.com)
+      // Instagram and Google Business can only fetch a PUBLIC image URL, so
+      // uploaded/AI images need this set before they can publish to those two.
+      publicUrl: '',
       // --- Product source ---
       shopify: { domain: 'ftechdeals.com', token: '' }, // token encrypted when set
       // --- Developer APP credentials only (one app drives many accounts) ---
@@ -165,9 +179,55 @@ function defaultDb() {
  */
 function normalize(d) {
   const s = d.settings || (d.settings = {});
-  if (s.claudeEnabled === undefined) s.claudeEnabled = true;
-  if (!s.gemini) s.gemini = { apiKey: '', enabled: false };
   if (s.paused === undefined) s.paused = false;
+  if (typeof s.publicUrl !== 'string') s.publicUrl = '';
+
+  /* ---- AI: old single-Claude shape -> multi-provider `brain` ---- */
+  if (!s.brain || typeof s.brain !== 'object') {
+    s.brain = {
+      active: 'claude',
+      providers: {
+        claude: {
+          apiKey: s.claudeApiKey || '',
+          model: s.claudeModel || 'claude-sonnet-5',
+          enabled: s.claudeEnabled === undefined ? true : !!s.claudeEnabled,
+        },
+        openai: { apiKey: '', model: 'gpt-4o', enabled: false },
+        // Gemini's key was previously used for images; carry it over.
+        gemini: {
+          apiKey: (s.gemini && s.gemini.apiKey) || '',
+          model: 'gemini-2.5-flash',
+          enabled: false,
+        },
+      },
+      image: {
+        provider: 'gemini',
+        enabled: !!(s.gemini && s.gemini.enabled),
+      },
+    };
+  }
+  // Backfill any missing pieces so partially-migrated DBs stay valid.
+  const b = s.brain;
+  if (!['claude', 'openai', 'gemini'].includes(b.active)) b.active = 'claude';
+  if (!b.providers || typeof b.providers !== 'object') b.providers = {};
+  ['claude', 'openai', 'gemini'].forEach((key) => {
+    const p = b.providers[key] || (b.providers[key] = {});
+    if (typeof p.apiKey !== 'string') p.apiKey = '';
+    if (typeof p.enabled !== 'boolean') p.enabled = key === 'claude';
+    // Validate the model against the current registry; reset stale/unknown IDs
+    // (e.g. an old "gpt-4o") to the provider's current default so the API can't
+    // 404 on a retired model. The first registry entry is the default.
+    const valid = (TEXT_MAP[key] && TEXT_MAP[key].models) || [];
+    if (!p.model || (valid.length && !valid.includes(p.model))) p.model = valid[0];
+  });
+  if (!b.image || typeof b.image !== 'object') b.image = { provider: 'gemini', enabled: false };
+  if (!['gemini', 'openai'].includes(b.image.provider)) b.image.provider = 'gemini';
+  if (typeof b.image.enabled !== 'boolean') b.image.enabled = false;
+  // Drop the superseded legacy fields so there is one source of truth.
+  delete s.claudeApiKey;
+  delete s.claudeModel;
+  delete s.claudeEnabled;
+  delete s.gemini;
 
   /* ---- Users: single `user` -> `users` array with roles ---- */
   if (!Array.isArray(d.users)) d.users = [];

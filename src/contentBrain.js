@@ -12,17 +12,19 @@
  *                to the business (tips, buying guides, industry insight). Use it
  *                where you don't want to sell directly (e.g. LinkedIn).
  *
- * SECURITY: the Claude/Gemini API keys are decrypted here, server-side, only at
- * call time. They are NEVER returned to the caller, logged, or sent to the
- * browser. With no key configured, a local template generator produces a
- * realistic preview so the system is usable before keys are added.
+ * SECURITY: every provider API key (Claude / OpenAI / Gemini) is decrypted here,
+ * server-side, only at call time. Keys are NEVER returned to the caller, logged,
+ * or sent to the browser. With no key configured, a local template generator
+ * produces a realistic preview so the system is usable before keys are added.
  */
 
 const fs = require('fs');
 const path = require('path');
 const store = require('./store');
+const config = require('./config');
 const { decrypt } = require('./crypto');
 const { PLATFORM_MAP } = require('./platforms');
+const { providerLabel, IMAGE_MODELS } = require('./brain');
 
 // Kept as PLATFORM_META for backwards compatibility with existing callers/views.
 const PLATFORM_META = PLATFORM_MAP;
@@ -168,101 +170,134 @@ function templatePost(product, platformKey, postType) {
   return templateProductPost(product, platformKey);
 }
 
-/* ------------------------- Claude API call --------------------------- */
+/* ----------------------- Text: provider dispatch --------------------- */
 
-async function callClaude(product, platformKey, account, postType) {
-  const s = store.get();
-  // Respect the ON/OFF switch: OFF = free built-in template writer.
-  if (!s.settings.claudeEnabled) {
-    return { text: templatePost(product, platformKey, postType), engine: 'template', note: 'Claude API is switched OFF — used the free template writer.' };
-  }
-  const key = decrypt(s.settings.claudeApiKey || '');
-  if (!key) {
-    return { text: templatePost(product, platformKey, postType), engine: 'template' };
-  }
-
-  const model = s.settings.claudeModel || 'claude-sonnet-5';
-  const p = PLATFORM_META[platformKey];
-  const { system, user } = buildPrompt(product, platformKey, account, postType);
-
+// Low-level call to ONE provider. Returns the finished text, or throws.
+// Adding a provider = add a `case` here + an entry in src/brain.js.
+async function callProvider(providerKey, model, key, system, user, maxTokens) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: p && p.kind === 'blog' ? 2000 : 600,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-
-    if (!resp.ok) {
-      // Do NOT leak the key or full request in errors.
-      const status = resp.status;
-      return {
-        text: templatePost(product, platformKey, postType),
-        engine: 'template',
-        note: `Claude API returned ${status}; showing a template preview instead.`,
-      };
+    if (providerKey === 'claude') {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
+        signal: ctrl.signal,
+      });
+      if (!resp.ok) throw new Error('http ' + resp.status);
+      const data = await resp.json();
+      return (data.content || []).map((c) => c.text || '').join('').trim();
     }
 
-    const data = await resp.json();
-    const text = (data.content || []).map((c) => c.text || '').join('').trim();
-    return { text: text || templatePost(product, platformKey, postType), engine: 'claude' };
-  } catch (_) {
-    return {
-      text: templatePost(product, platformKey, postType),
-      engine: 'template',
-      note: 'Could not reach Claude API; showing a template preview instead.',
-    };
+    if (providerKey === 'openai') {
+      // GPT-5.6 uses the Responses API. `instructions` is the system prompt,
+      // `input` is the user prompt. Give generous output room since reasoning
+      // models spend part of the budget thinking before the visible text.
+      const resp = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
+        body: JSON.stringify({
+          model,
+          instructions: system,
+          input: user,
+          max_output_tokens: Math.max(maxTokens * 3, 2000),
+        }),
+        signal: ctrl.signal,
+      });
+      if (!resp.ok) throw new Error('http ' + resp.status);
+      const data = await resp.json();
+      // Prefer the convenience field; otherwise pull text out of the output array.
+      if (typeof data.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
+      const parts = (data.output || []).flatMap((item) => item.content || []);
+      return parts.map((c) => c.text || '').join('').trim();
+    }
+
+    if (providerKey === 'gemini') {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: system }] },
+            contents: [{ parts: [{ text: user }] }],
+          }),
+          signal: ctrl.signal,
+        }
+      );
+      if (!resp.ok) throw new Error('http ' + resp.status);
+      const data = await resp.json();
+      const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+      return parts.map((pt) => pt.text || '').join('').trim();
+    }
+
+    throw new Error('unknown provider ' + providerKey);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-/* ------------------------ Gemini image engine ------------------------ */
-
-/**
- * Generates a marketing image with the Gemini API when it is switched ON and a
- * key is saved. Otherwise (or on any failure) it falls back to the REAL product
- * photo when we have a product, or no image for general posts — so nothing
- * breaks. The Gemini key is decrypted server-side only, like the Claude key.
- */
-async function generateImage(product) {
+// Picks the ACTIVE brain provider and writes the post. Falls back to the free
+// built-in template writer whenever the provider is off, keyless, or unreachable.
+async function callBrain(product, platformKey, account, postType) {
   const s = store.get();
-  const g = s.settings.gemini || {};
-  const fallback = product && product.image ? product.image : '';
-  const fallbackEngine = product && product.image ? 'product-photo' : 'none';
+  const brain = s.settings.brain || {};
+  const providerKey = brain.active || 'claude';
+  const cfg = (brain.providers || {})[providerKey] || {};
+  const label = providerLabel(providerKey);
 
-  if (!g.enabled) {
-    return { url: fallback, imageEngine: fallbackEngine };
+  if (!cfg.enabled) {
+    return { text: templatePost(product, platformKey, postType), engine: 'template', note: `${label} is switched OFF — used the free template writer.` };
   }
-  const key = decrypt(g.apiKey || '');
+  const key = decrypt(cfg.apiKey || '');
   if (!key) {
-    return {
-      url: fallback,
-      imageEngine: fallbackEngine,
-      imageNote: 'Gemini is ON but no key is saved — used ' + (fallback ? 'the real product photo.' : 'no image.'),
-    };
+    return { text: templatePost(product, platformKey, postType), engine: 'template', note: `No ${label} key saved yet — used the free template writer.` };
   }
+
+  const p = PLATFORM_META[platformKey];
+  const maxTokens = p && p.kind === 'blog' ? 2000 : 600;
+  const { system, user } = buildPrompt(product, platformKey, account, postType);
 
   try {
-    const brand = s.settings.brand;
-    const subject = product
-      ? `${product.shortTitle || product.title} on a clean modern desk`
-      : `a clean modern desk with a laptop and mini PC in a bright tech shop`;
-    const prompt =
-      `Professional social media marketing photo: ${subject}, soft studio lighting, ` +
-      `subtle accents in ${brand.colorPrimary}, photorealistic, high quality. ` +
-      `No text, no words, no logos, no watermark.`;
+    const text = await callProvider(providerKey, cfg.model, key, system, user, maxTokens);
+    return { text: text || templatePost(product, platformKey, postType), engine: providerKey };
+  } catch (_) {
+    // Never leak the key or request body in errors.
+    return { text: templatePost(product, platformKey, postType), engine: 'template', note: `Could not reach ${label}; showing a template preview instead.` };
+  }
+}
 
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 45000);
+/* ------------------------- Image generation -------------------------- */
+
+function imagePrompt(product) {
+  const brand = store.get().settings.brand;
+  const subject = product
+    ? `${product.shortTitle || product.title} on a clean modern desk`
+    : `a clean modern desk with a laptop and mini PC in a bright tech shop`;
+  return (
+    `Professional social media marketing photo: ${subject}, soft studio lighting, ` +
+    `subtle accents in ${brand.colorPrimary}, photorealistic, high quality. ` +
+    `No text, no words, no logos, no watermark.`
+  );
+}
+
+// Saves raw image bytes into the persistent uploads dir and returns its URL.
+function saveGeneratedImage(base64, mime) {
+  const dir = path.join(config.dataDir, 'generated');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const ext = (mime || 'image/png').includes('jpeg') ? 'jpg' : 'png';
+  const name = `img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  fs.writeFileSync(path.join(dir, name), Buffer.from(base64, 'base64'));
+  return '/media/generated/' + name;
+}
+
+async function geminiImage(key, prompt) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45000);
+  try {
     const resp = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODELS.gemini}:generateContent`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -270,38 +305,74 @@ async function generateImage(product) {
         signal: ctrl.signal,
       }
     );
-    clearTimeout(timer);
-
-    if (!resp.ok) {
-      return {
-        url: fallback,
-        imageEngine: fallbackEngine,
-        imageNote: `Gemini API returned ${resp.status} — used ${fallback ? 'the real product photo' : 'no image'} instead.`,
-      };
-    }
-
+    if (!resp.ok) throw new Error('http ' + resp.status);
     const data = await resp.json();
     const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
     const img = parts.find((pt) => pt.inlineData && pt.inlineData.data);
-    if (!img) {
-      return {
-        url: fallback,
-        imageEngine: fallbackEngine,
-        imageNote: 'Gemini sent no image — used ' + (fallback ? 'the real product photo' : 'no image') + ' instead.',
-      };
-    }
+    if (!img) throw new Error('no image');
+    return saveGeneratedImage(img.inlineData.data, img.inlineData.mimeType);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-    const dir = path.join(__dirname, '..', 'public', 'generated');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const ext = (img.inlineData.mimeType || 'image/png').includes('jpeg') ? 'jpg' : 'png';
-    const name = `img-${Date.now()}.${ext}`;
-    fs.writeFileSync(path.join(dir, name), Buffer.from(img.inlineData.data, 'base64'));
-    return { url: '/generated/' + name, imageEngine: 'gemini' };
+async function openaiImage(key, prompt) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const resp = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
+      body: JSON.stringify({ model: IMAGE_MODELS.openai, prompt, size: '1024x1024', n: 1 }),
+      signal: ctrl.signal,
+    });
+    if (!resp.ok) throw new Error('http ' + resp.status);
+    const data = await resp.json();
+    const first = (data.data || [])[0] || {};
+    if (!first.b64_json) throw new Error('no image');
+    return saveGeneratedImage(first.b64_json, 'image/png');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Generates a marketing image with the chosen provider (Gemini or OpenAI) when
+ * image generation is switched ON and that provider has a key. Otherwise — or on
+ * any failure — it falls back to the REAL product photo when we have a product,
+ * or no image for general posts, so nothing ever breaks.
+ */
+async function generateImage(product) {
+  const s = store.get();
+  const brain = s.settings.brain || {};
+  const imgCfg = brain.image || {};
+  const fallback = product && product.image ? product.image : '';
+  const fallbackEngine = product && product.image ? 'product-photo' : 'none';
+
+  if (!imgCfg.enabled) {
+    return { url: fallback, imageEngine: fallbackEngine };
+  }
+  const providerKey = imgCfg.provider === 'openai' ? 'openai' : 'gemini';
+  const label = providerLabel(providerKey);
+  const cfg = (brain.providers || {})[providerKey] || {};
+  const key = decrypt(cfg.apiKey || '');
+  if (!key) {
+    return {
+      url: fallback,
+      imageEngine: fallbackEngine,
+      imageNote: `${label} image is ON but no ${label} key is saved — used ` + (fallback ? 'the real product photo.' : 'no image.'),
+    };
+  }
+
+  try {
+    const prompt = imagePrompt(product);
+    const url = providerKey === 'openai' ? await openaiImage(key, prompt) : await geminiImage(key, prompt);
+    return { url, imageEngine: providerKey };
   } catch (_) {
     return {
       url: fallback,
       imageEngine: fallbackEngine,
-      imageNote: 'Could not reach Gemini — used ' + (fallback ? 'the real product photo' : 'no image') + ' instead.',
+      imageNote: `Could not generate a ${label} image — used ` + (fallback ? 'the real product photo' : 'no image') + ' instead.',
     };
   }
 }
@@ -310,7 +381,7 @@ async function generate(product, platformKey, account, opts = {}) {
   const postType = isGeneral(opts.postType) ? 'general' : 'product';
   const useProduct = postType === 'general' ? null : product;
 
-  const result = await callClaude(useProduct, platformKey, account, postType);
+  const result = await callBrain(useProduct, platformKey, account, postType);
   const img = await generateImage(useProduct);
   const p = PLATFORM_META[platformKey];
   return {
@@ -325,9 +396,11 @@ async function generate(product, platformKey, account, opts = {}) {
       : (p && p.kind === 'blog' ? 'General article' : 'General post'),
     text: result.text,
     engine: result.engine,
+    engineLabel: result.engine === 'template' ? 'template' : providerLabel(result.engine),
     note: result.note || null,
     image: img.url,
     imageEngine: img.imageEngine,
+    imageLabel: ['gemini', 'openai'].includes(img.imageEngine) ? providerLabel(img.imageEngine) : null,
     imageNote: img.imageNote || null,
     createdAt: new Date().toISOString(),
   };

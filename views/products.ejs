@@ -1,17 +1,26 @@
 <%- include('partials/header') %>
 
 <div class="card">
-  <h2>Products</h2>
-  <p class="sub">
-    These feed the Content Brain.
-    <% if (shopifyConnected) { %>
-      Synced from your Shopify store.
-    <% } else { %>
-      Showing sample products from <b>ftechdeals.com</b>. Add your Shopify Admin token in
-      <a href="/settings">Settings → Product source</a> to pull your full live catalog.
-    <% } %>
-  </p>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <h2>Products</h2>
+      <p class="sub" style="margin:0">
+        These feed the Content Brain.
+        <% if (shopifyConnected) { %>
+          Synced from your Shopify store<% if (shopify.lastSync) { %> — last update <b><%= new Date(shopify.lastSync).toLocaleString() %></b><% } %>.
+        <% } else { %>
+          Showing sample products from <b>ftechdeals.com</b>. Add your Shopify Admin token in
+          <a href="/settings">Settings → Shopify</a>, then Sync to pull your full live catalogue.
+        <% } %>
+      </p>
+    </div>
+    <form method="post" action="/products/sync" style="margin:0">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <button class="btn" type="submit" <%= shopifyConnected ? '' : 'disabled title="Add a Shopify token in Settings first"' %>>🔄 Sync from Shopify</button>
+    </form>
+  </div>
 
+  <div class="table-wrap" style="margin-top:14px">
   <table>
     <thead><tr><th>Product</th><th>Type</th><th>Price</th><th></th></tr></thead>
     <tbody>
@@ -33,6 +42,7 @@
       <% }); %>
     </tbody>
   </table>
+  </div>
 </div>
 
 <%- include('partials/footer') %>

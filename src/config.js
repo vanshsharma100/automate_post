@@ -55,7 +55,7 @@ const config = {
   masterKey: process.env.MASTER_KEY || local.MASTER_KEY,
   sessionSecret: process.env.SESSION_SECRET || local.SESSION_SECRET,
   dataDir: DATA_DIR,
-  // Default recovery email (editable in Settings). Requested by the owner.
+  // Default recovery email (editable in Settings → Email).
   defaultRecoveryEmail: 'vansh76840405@gmail.com',
   // Default admin credentials created on first run (change after first login).
   defaultAdminUser: 'admin',

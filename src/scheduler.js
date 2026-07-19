@@ -14,11 +14,41 @@
  *  - otherwise                            -> saves a Draft for manual approval.
  */
 
+const fs = require('fs');
+const path = require('path');
 const cron = require('node-cron');
 const store = require('./store');
+const config = require('./config');
 const { generate } = require('./contentBrain');
+const { publishPost } = require('./publisher');
 const { decrypt } = require('./crypto');
 const { PLATFORM_KEYS, PLATFORM_MAP } = require('./platforms');
+
+/**
+ * Daily database backup. Writes data/db.backup-YYYY-MM-DD.json and keeps only
+ * the newest 7, so a bad edit or crash is always recoverable without the folder
+ * growing without bound.
+ */
+function dailyBackup() {
+  try {
+    const dir = config.dataDir;
+    const src = path.join(dir, 'db.json');
+    if (!fs.existsSync(src)) return;
+    const stamp = new Date().toISOString().slice(0, 10);
+    fs.copyFileSync(src, path.join(dir, `db.backup-${stamp}.json`));
+    // Prune to the 7 most recent dated backups.
+    const backups = fs
+      .readdirSync(dir)
+      .filter((f) => /^db\.backup-\d{4}-\d{2}-\d{2}\.json$/.test(f))
+      .sort();
+    while (backups.length > 7) {
+      const old = backups.shift();
+      try { fs.unlinkSync(path.join(dir, old)); } catch (_) {}
+    }
+  } catch (e) {
+    console.error('[backup]', e.message);
+  }
+}
 
 function pickProduct() {
   const products = store.get().products;
@@ -90,26 +120,35 @@ async function runSlot(platformKey, { manual = false, postType } = {}) {
     const post = await generate(product, platformKey, account, { postType: type });
     const connected = isConnected(platformKey, account);
 
-    let status;
-    if (toggle === 'auto' && connected) {
-      // Placeholder: real publish happens once a connector is wired up.
-      status = 'published';
-    } else if (toggle === 'auto' && !connected) {
-      status = 'draft';
-      post.note = account
-        ? `Autopilot is ON but "${account.label}" is not connected yet — saved as Draft.`
-        : 'Autopilot is ON but this platform is not connected yet — saved as Draft.';
-    } else {
-      status = 'draft';
-    }
-
     const record = {
       id: 'post_' + Date.now() + '_' + platformKey + (account ? '_' + account.id : '') + '_' + Math.random().toString(36).slice(2, 7),
       ...post,
-      status,
+      status: 'draft',
       approved: false,
       trigger: manual ? 'manual' : 'schedule',
     };
+
+    // AUTOPILOT: actually publish, right now, without asking.
+    // MANUAL (draft): just save it — the owner presses "Publish now".
+    if (toggle === 'auto' && connected) {
+      const r = await publishPost(record, account);
+      if (r.ok) {
+        record.status = 'published';
+        record.approved = true;
+        record.permalink = r.permalink || null;
+        record.publishedAt = new Date().toISOString();
+        record.note = null;
+      } else {
+        record.status = 'failed';
+        record.note = 'Auto-publish failed — ' + r.error + ' Fix it and press "Publish now".';
+      }
+    } else if (toggle === 'auto' && !connected) {
+      record.note = account
+        ? `Autopilot is ON but "${account.label}" is not connected yet — saved as Draft.`
+        : 'Autopilot is ON but this platform is not connected yet — saved as Draft.';
+    }
+
+    const status = record.status;
     records.push(record);
 
     store.update((d) => {
@@ -161,15 +200,28 @@ async function tick() {
     (p) => p.status === 'scheduled' && p.scheduledAt && new Date(p.scheduledAt) <= now
   );
   for (const p of due) {
+    // Fall back to the first enabled account when the post didn't pin one.
+    const accounts = d.settings.accounts || [];
     const account = p.accountId
-      ? (d.settings.accounts || []).find((a) => a.id === p.accountId) || null
-      : null;
+      ? accounts.find((a) => a.id === p.accountId) || null
+      : accounts.find((a) => a.platform === p.platform && a.enabled) || null;
     const connected = isConnected(p.platform, account);
+
+    let result = null;
+    if (connected) result = await publishPost(p, account);
+
     store.update((db) => {
       const rec = db.posts.find((x) => x.id === p.id);
       if (!rec) return;
-      if (connected) {
-        rec.status = 'published'; // placeholder until real connectors publish
+      if (result && result.ok) {
+        rec.status = 'published';
+        rec.approved = true;
+        rec.permalink = result.permalink || null;
+        rec.publishedAt = new Date().toISOString();
+        rec.note = null;
+      } else if (result) {
+        rec.status = 'failed';
+        rec.note = 'Scheduled publish failed — ' + result.error + ' Press "Publish now" to retry.';
       } else {
         rec.status = 'approved';
         rec.note = 'Scheduled time reached — will publish as soon as the platform connector is added.';
@@ -188,6 +240,8 @@ async function tick() {
 
 function start() {
   cron.schedule('* * * * *', tick);
+  cron.schedule('0 3 * * *', dailyBackup); // 3 AM daily
+  dailyBackup(); // also snapshot once on boot
   console.log('[scheduler] running — checks every minute (weekly slots + scheduled posts, master pause respected).');
 }
 

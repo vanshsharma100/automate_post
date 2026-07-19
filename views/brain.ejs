@@ -1,0 +1,93 @@
+<%- include('partials/header') %>
+
+<div class="callout" style="margin-bottom:18px">
+  🧠 <b>This is the brain that writes your posts.</b> Add one or more AI providers below, then pick
+  <b>which one</b> should write. Every key is encrypted (AES-256-GCM) and <b>never shown again</b> —
+  leave a key field blank to keep what's saved. The brain reads your
+  <a href="/knowledge">Share Knowledge</a> so posts sound like your business.
+</div>
+
+<form method="post" action="/brain">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+  <!-- Choose the active brain -->
+  <div class="card">
+    <h2>Which brain writes your posts?</h2>
+    <p class="sub">Pick one. Only providers you've switched ON and given a key will actually write; otherwise you get a free template preview.</p>
+    <div class="brain-picker">
+      <% textProviders.forEach(function(prov){ var p = brain.providers[prov.key] || {}; %>
+        <label class="brain-choice <%= brain.active === prov.key ? 'sel' : '' %>">
+          <input type="radio" name="active" value="<%= prov.key %>" <%= brain.active === prov.key ? 'checked' : '' %> />
+          <span class="bc-ico"><%= prov.icon %></span>
+          <span class="bc-body">
+            <b><%= prov.label %></b> <span class="hint">by <%= prov.vendor %></span>
+            <span class="bc-blurb"><%= prov.blurb %></span>
+            <span class="bc-state <%= (p.enabled && masks[prov.key]) ? 'ok' : 'off' %>">
+              <%= p.enabled ? 'ON' : 'OFF' %><%= masks[prov.key] ? ' · key saved' : ' · no key' %>
+            </span>
+          </span>
+        </label>
+      <% }); %>
+    </div>
+  </div>
+
+  <!-- Provider keys + models -->
+  <div class="section-title">Providers — add as many as you like</div>
+  <% textProviders.forEach(function(prov){ var p = brain.providers[prov.key] || {}; %>
+    <div class="card" style="margin-bottom:16px">
+      <h2><%= prov.icon %> <%= prov.label %> <span class="hint">— <%= prov.vendor %></span></h2>
+      <p class="sub"><%= prov.blurb %> Get a key: <a href="<%= prov.keyUrl %>" target="_blank" rel="noopener">API keys ↗</a></p>
+      <div class="row">
+        <div>
+          <label><%= prov.label %> API key <% if (masks[prov.key]) { %><span class="hint">— saved: <span class="mask"><%= masks[prov.key] %></span></span><% } %></label>
+          <input id="key_<%= prov.key %>" type="password" name="<%= prov.key %>_key" placeholder="<%= masks[prov.key] ? 'Leave blank to keep current key' : prov.keyHint %>" autocomplete="off" />
+          <button type="button" class="btn ghost sm" data-reveal="key_<%= prov.key %>" style="margin-top:6px">Show/Hide</button>
+        </div>
+        <div>
+          <label>Switch</label>
+          <select name="<%= prov.key %>_enabled">
+            <option value="on" <%= p.enabled ? 'selected' : '' %>>ON — allow this provider</option>
+            <option value="off" <%= !p.enabled ? 'selected' : '' %>>OFF — don't use</option>
+          </select>
+          <label>Model</label>
+          <select name="<%= prov.key %>_model">
+            <% prov.models.forEach(function(m){ %>
+              <option value="<%= m %>" <%= p.model === m ? 'selected' : '' %>><%= m %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+
+  <!-- Image generator -->
+  <div class="section-title">Image generator</div>
+  <div class="card">
+    <h2>🎨 Which AI draws your images?</h2>
+    <p class="sub">Choose the provider that creates marketing images. It uses that provider's key from above. When OFF (or if it fails), posts use the <b>real product photo</b> from your store.</p>
+    <div class="row">
+      <div>
+        <label>Image provider</label>
+        <select name="image_provider">
+          <% imageProviders.forEach(function(ip){ %>
+            <option value="<%= ip.key %>" <%= brain.image.provider === ip.key ? 'selected' : '' %>><%= ip.label %> — <%= ip.vendor %></option>
+          <% }); %>
+        </select>
+        <div class="help"><% imageProviders.forEach(function(ip){ if (ip.key === brain.image.provider) { %><%= ip.note %><% } }); %></div>
+      </div>
+      <div>
+        <label>Image switch</label>
+        <select name="image_enabled">
+          <option value="on" <%= brain.image.enabled ? 'selected' : '' %>>ON — generate AI images</option>
+          <option value="off" <%= !brain.image.enabled ? 'selected' : '' %>>OFF — use real product photo</option>
+        </select>
+        <div class="help">ChatGPT images use your OpenAI key; Gemini images use your Gemini key.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:16px"></div>
+  <button class="btn wide" type="submit">💾 Save Brain</button>
+</form>
+
+<%- include('partials/footer') %>

@@ -6,58 +6,11 @@
   Leave a secret field blank to keep the saved value. Nothing here is ever sent to your browser in plain text.
 </div>
 
-<!-- AI -->
+<!-- AI moved to the Brain page -->
 <div class="card">
-  <h2>AI — writing &amp; images</h2>
-  <p class="sub">Each API has its own ON/OFF switch — turn them off any time you have no work and want zero API usage.</p>
-  <form method="post" action="/settings/ai">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-
-    <h3 style="margin-top:6px">✍️ Claude — writes the posts</h3>
-    <div class="row">
-      <div>
-        <label>Claude API key <% if (masks.claude) { %><span class="hint">— saved: <span class="mask"><%= masks.claude %></span></span><% } %></label>
-        <input id="claudeKey" type="password" name="claudeApiKey" placeholder="<%= masks.claude ? 'Leave blank to keep current key' : 'sk-ant-...' %>" autocomplete="off" />
-        <button type="button" class="btn ghost sm" data-reveal="claudeKey" style="margin-top:6px">Show/Hide</button>
-      </div>
-      <div>
-        <label>Claude switch</label>
-        <select name="claudeEnabled">
-          <option value="on" <%= settings.claudeEnabled ? 'selected' : '' %>>ON — write with Claude</option>
-          <option value="off" <%= !settings.claudeEnabled ? 'selected' : '' %>>OFF — free template writer</option>
-        </select>
-        <label>Model</label>
-        <select name="claudeModel">
-          <% ['claude-sonnet-5','claude-opus-4-8','claude-haiku-4-5-20251001'].forEach(function(m){ %>
-            <option value="<%= m %>" <%= settings.claudeModel === m ? 'selected' : '' %>><%= m %></option>
-          <% }); %>
-        </select>
-      </div>
-    </div>
-
-    <hr class="divider" />
-
-    <h3>🎨 Gemini — generates images (free tier)</h3>
-    <div class="row">
-      <div>
-        <label>Gemini API key <% if (masks.gemini) { %><span class="hint">— saved: <span class="mask"><%= masks.gemini %></span></span><% } %></label>
-        <input id="geminiKey" type="password" name="geminiApiKey" placeholder="<%= masks.gemini ? 'Leave blank to keep current key' : 'AIza...' %>" autocomplete="off" />
-        <button type="button" class="btn ghost sm" data-reveal="geminiKey" style="margin-top:6px">Show/Hide</button>
-        <div class="help">Free key from aistudio.google.com → Get API key.</div>
-      </div>
-      <div>
-        <label>Gemini switch</label>
-        <select name="geminiEnabled">
-          <option value="on" <%= settings.gemini.enabled ? 'selected' : '' %>>ON — AI images via Gemini</option>
-          <option value="off" <%= !settings.gemini.enabled ? 'selected' : '' %>>OFF — use real product photo</option>
-        </select>
-        <div class="help">When OFF (or if Gemini fails), posts automatically use the <b>real product photo</b> from your store.</div>
-      </div>
-    </div>
-
-    <div style="height:14px"></div>
-    <button class="btn" type="submit">Save AI settings</button>
-  </form>
+  <h2>🧠 AI keys &amp; models — moved to the Brain page</h2>
+  <p class="sub">Your writing providers (Claude, ChatGPT, Gemini) and the image generator now live on their own page, so you can add several and choose which one writes.</p>
+  <a class="btn" href="/brain">Open the Brain →</a>
 </div>
 
 <!-- Posting schedule -->
@@ -108,20 +61,48 @@
   </form>
 </div>
 
-<!-- Product source -->
-<div class="card" style="margin-top:18px">
-  <h2>Product source — Shopify</h2>
-  <p class="sub">Pulls live products &amp; prices from your store. Add a Shopify Admin API access token when ready.</p>
+<div class="section-title">Publishing</div>
+<div class="card">
+  <h2>🌐 Public site address <span class="hint">— needed for Instagram &amp; Google photos</span></h2>
+  <p class="sub">
+    After you deploy, paste this app's public web address here (e.g. <code>https://ftech-posts.onrender.com</code>).
+    Instagram and Google Business can only publish a photo they can <b>download from the internet</b>, so uploaded and
+    AI-generated images need this. Facebook, LinkedIn and the Shopify Blog work without it.
+  </p>
+  <% if (!settings.publicUrl) { %>
+    <div class="callout" style="margin-bottom:14px">Not set yet — Instagram/Google will still publish <b>text</b>, and any photo that comes from your Shopify store.</div>
+  <% } %>
+  <form method="post" action="/settings/site">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <label>Public site address</label>
+    <input type="text" name="publicUrl" value="<%= settings.publicUrl || '' %>" placeholder="https://your-app.onrender.com" />
+    <div style="height:14px"></div>
+    <button class="btn" type="submit">Save address</button>
+  </form>
+</div>
+
+<div class="section-title">Main content source — Shopify</div>
+<div class="card">
+  <h2>🛒 Shopify store — where your products come from</h2>
+  <p class="sub">
+    This is the <b>main brain input</b>: your live products, prices, photos and links feed every product post.
+    Add a Shopify <b>Admin API access token</b> with <code>read_products</code> access, then press
+    <b>Sync</b> on the <a href="/products">Products</a> page to pull your full catalogue.
+  </p>
+  <% if (settings.shopify.lastSync) { %>
+    <div class="callout" style="margin-bottom:14px">✅ Last synced <b><%= new Date(settings.shopify.lastSync).toLocaleString() %></b> — <%= settings.shopify.lastCount || 0 %> products.</div>
+  <% } %>
   <form method="post" action="/settings/shopify">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <div class="row">
       <div>
         <label>Store domain</label>
-        <input type="text" name="domain" value="<%= settings.shopify.domain %>" placeholder="ftechdeals.com" />
+        <input type="text" name="domain" value="<%= settings.shopify.domain %>" placeholder="ftechdeals.com or your-store.myshopify.com" />
       </div>
       <div>
         <label>Admin API token <% if (masks.shopify) { %><span class="hint">— saved: <span class="mask"><%= masks.shopify %></span></span><% } %></label>
         <input type="password" name="token" placeholder="<%= masks.shopify ? 'Leave blank to keep' : 'shpat_...' %>" autocomplete="off" />
+        <div class="help">Shopify admin → Settings → Apps and sales channels → Develop apps → your app → API credentials.</div>
       </div>
     </div>
     <div style="height:14px"></div>
