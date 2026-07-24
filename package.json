@@ -1,0 +1,28 @@
+{
+  "name": "autopost-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Posts Automation — self-contained runnable build of the master plan (multi-platform AI content automation).",
+  "scripts": {
+    "build": "vite build",
+    "start": "node server/index.js",
+    "serve": "npm run build && node server/index.js",
+    "dev:web": "vite",
+    "dev:api": "node --watch server/index.js",
+    "postinstall": "node server/scripts/ensure-env.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

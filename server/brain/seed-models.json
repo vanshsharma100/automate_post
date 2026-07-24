@@ -1,0 +1,20 @@
+{
+  "ANTHROPIC": [
+    { "modelId": "claude-opus-4-8", "displayName": "Claude Opus 4.8", "modality": "TEXT", "contextWindow": 200000, "maxOutput": 32000, "inputPricePerM": 5.0, "outputPricePerM": 25.0, "capabilities": { "vision": true, "tools": true, "json": true, "thinking": true, "tier": "flagship" } },
+    { "modelId": "claude-sonnet-5", "displayName": "Claude Sonnet 5", "modality": "TEXT", "contextWindow": 200000, "maxOutput": 64000, "inputPricePerM": 3.0, "outputPricePerM": 15.0, "capabilities": { "vision": true, "tools": true, "json": true, "tier": "mid" } },
+    { "modelId": "claude-haiku-4-5-20251001", "displayName": "Claude Haiku 4.5", "modality": "TEXT", "contextWindow": 200000, "maxOutput": 32000, "inputPricePerM": 0.8, "outputPricePerM": 4.0, "capabilities": { "vision": true, "tools": true, "json": true, "tier": "small" } }
+  ],
+  "OPENAI": [
+    { "modelId": "gpt-5", "displayName": "GPT-5", "modality": "TEXT", "contextWindow": 400000, "maxOutput": 128000, "inputPricePerM": 5.0, "outputPricePerM": 20.0, "capabilities": { "vision": true, "tools": true, "json": true, "tier": "flagship" } },
+    { "modelId": "gpt-5-mini", "displayName": "GPT-5 mini", "modality": "TEXT", "contextWindow": 400000, "maxOutput": 64000, "inputPricePerM": 0.6, "outputPricePerM": 2.4, "capabilities": { "vision": true, "tools": true, "json": true, "tier": "small" } },
+    { "modelId": "gpt-image-1", "displayName": "GPT Image 1", "modality": "IMAGE", "imagePriceEach": 0.04, "capabilities": { "tier": "image" } }
+  ],
+  "GOOGLE": [
+    { "modelId": "gemini-2.5-pro", "displayName": "Gemini 2.5 Pro", "modality": "TEXT", "contextWindow": 1000000, "maxOutput": 65000, "inputPricePerM": 2.5, "outputPricePerM": 15.0, "capabilities": { "vision": true, "tools": true, "json": true, "tier": "flagship" } },
+    { "modelId": "gemini-2.5-flash", "displayName": "Gemini 2.5 Flash", "modality": "TEXT", "contextWindow": 1000000, "maxOutput": 65000, "inputPricePerM": 0.3, "outputPricePerM": 2.5, "capabilities": { "vision": true, "tools": true, "json": true, "tier": "small" } },
+    { "modelId": "imagen-4.0-generate-001", "displayName": "Imagen 4", "modality": "IMAGE", "imagePriceEach": 0.04, "capabilities": { "tier": "image" } }
+  ],
+  "OPENAI_COMPATIBLE": [
+    { "modelId": "openrouter/auto", "displayName": "OpenRouter Auto", "modality": "TEXT", "contextWindow": 128000, "maxOutput": 16000, "inputPricePerM": 1.0, "outputPricePerM": 3.0, "capabilities": { "json": true, "tier": "mid" } }
+  ]
+}
